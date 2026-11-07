@@ -296,11 +296,39 @@
       </button>
 </div>
 </section>
-<!-- Curated Makgeolli Results Grid (Dynamic Filtered Rendering) -->
+<!-- Curated Makgeolli Results (Dynamic Filtered Rendering: Grid & List View) -->
 <section class="w-full px-margin-mobile lg:px-margin py-space-md" id="makgeolli-results-section">
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter" id="makgeolli-card-grid">
-  <!-- JavaScript로 실시간 렌더링 -->
-</div>
+  <!-- Results Header Bar & View Mode Switcher -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-space-md pb-space-xs border-b border-surface-container-high">
+    <div class="flex flex-wrap items-center gap-2">
+      <h3 class="font-headline-sm text-lg font-bold text-primary flex items-center gap-2">
+        <span class="material-symbols-outlined text-secondary text-xl">liquor</span>
+        <span>추천 막걸리 둘러보기</span>
+      </h3>
+      <span id="results-count-badge" class="px-2.5 py-0.5 rounded-full bg-secondary/15 text-secondary text-xs font-bold shadow-xs">
+        79종
+      </span>
+      <span class="text-xs text-on-surface-variant hidden md:inline">
+        · 원하는 막걸리를 클릭하면 상세 테이스팅 노트를 확인할 수 있습니다
+      </span>
+    </div>
+
+    <!-- View Mode Switcher: Grid (카드형) vs List (목록형) -->
+    <div class="inline-flex items-center p-1 bg-surface-container-low rounded-xl border border-surface-container-high shadow-xs self-start sm:self-auto">
+      <button id="view-mode-grid" onclick="setViewMode('grid')" title="카드형 그리드 뷰 (이미지 중심)" class="view-mode-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-primary text-on-primary shadow-xs">
+        <span class="material-symbols-outlined text-base">grid_view</span>
+        <span>카드형 (이미지)</span>
+      </button>
+      <button id="view-mode-list" onclick="setViewMode('list')" title="목록형 리스트 뷰 (정보 비교)" class="view-mode-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-on-surface-variant hover:text-primary hover:bg-surface-container">
+        <span class="material-symbols-outlined text-base">view_list</span>
+        <span>리스트형 (목록)</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter" id="makgeolli-card-grid">
+    <!-- JavaScript로 실시간 렌더링 -->
+  </div>
 <!-- Empty State (조건에 부합하는 막걸리가 없을 때) -->
 <div id="makgeolli-empty-state" class="hidden py-16 px-4 text-center bg-surface-container-lowest rounded-xl border-2 border-dashed border-outline-variant/40 shadow-sm">
   <div class="w-16 h-16 rounded-full bg-surface-container mx-auto flex items-center justify-center text-outline mb-space-md">
@@ -2193,23 +2221,75 @@
     renderCards(displayList);
   }
 
-  // 막걸리 카드 HTML 렌더링 함수
+  // 뷰 모드 상태 관리 ('grid' | 'list')
+  let currentViewMode = 'grid';
+
+  function setViewMode(mode) {
+    if (currentViewMode === mode) return;
+    currentViewMode = mode;
+    try {
+      localStorage.setItem('makguli_view_mode', mode);
+    } catch (e) {}
+    updateViewModeUI();
+    filterAndRenderMakgeolli();
+  }
+
+  function updateViewModeUI() {
+    const gridBtn = document.getElementById('view-mode-grid');
+    const listBtn = document.getElementById('view-mode-list');
+    if (!gridBtn || !listBtn) return;
+
+    if (currentViewMode === 'grid') {
+      gridBtn.className = 'view-mode-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-primary text-on-primary shadow-xs';
+      listBtn.className = 'view-mode-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-on-surface-variant hover:text-primary hover:bg-surface-container';
+    } else {
+      gridBtn.className = 'view-mode-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-on-surface-variant hover:text-primary hover:bg-surface-container';
+      listBtn.className = 'view-mode-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-primary text-on-primary shadow-xs';
+    }
+  }
+
+  function initViewMode() {
+    try {
+      const saved = localStorage.getItem('makguli_view_mode');
+      if (saved === 'list' || saved === 'grid') {
+        currentViewMode = saved;
+      }
+    } catch (e) {}
+    updateViewModeUI();
+  }
+
+  // 막걸리 결과 렌더링 함수 (그리드 뷰 / 리스트 뷰 분기)
   function renderCards(list) {
-    const grid = document.getElementById('makgeolli-card-grid');
+    const container = document.getElementById('makgeolli-card-grid');
     const emptyState = document.getElementById('makgeolli-empty-state');
-    if (!grid) return;
+    const resultsCountBadge = document.getElementById('results-count-badge');
+    if (!container) return;
+
+    if (resultsCountBadge) {
+      resultsCountBadge.innerText = `${list.length}종`;
+    }
 
     if (list.length === 0) {
-      grid.innerHTML = '';
+      container.innerHTML = '';
       if (emptyState) emptyState.classList.remove('hidden');
       return;
     }
 
     if (emptyState) emptyState.classList.add('hidden');
 
+    if (currentViewMode === 'list') {
+      container.className = 'flex flex-col gap-3.5';
+      container.innerHTML = renderListViewHtml(list);
+    } else {
+      container.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter';
+      container.innerHTML = renderGridViewHtml(list);
+    }
+  }
+
+  // 그리드 (카드형) HTML 생성
+  function renderGridViewHtml(list) {
     let html = '';
     list.forEach(item => {
-      // 일치율 배지 색상
       let badgeStyle = 'bg-secondary text-on-secondary';
       let badgeIcon = 'verified';
       if (item.matchRate >= 95) {
@@ -2362,8 +2442,155 @@
       </article>
       `;
     });
+    return html;
+  }
 
-    grid.innerHTML = html;
+  // 리스트 (목록형) HTML 생성
+  function renderListViewHtml(list) {
+    let html = '';
+    list.forEach(item => {
+      let badgeStyle = 'bg-secondary text-on-secondary';
+      let badgeIcon = 'verified';
+      if (item.matchRate >= 95) {
+        badgeStyle = 'bg-primary text-on-primary ring-1 ring-secondary-fixed';
+        badgeIcon = 'auto_awesome';
+      } else if (item.matchRate >= 85) {
+        badgeStyle = 'bg-secondary text-on-secondary';
+        badgeIcon = 'thumb_up';
+      }
+
+      const hasValidImg = Boolean(item.image && item.image.trim() !== '' && item.image !== '-');
+
+      html += `
+      <article onclick="openTastingModal(${item.id})" class="bg-surface-container-lowest rounded-xl p-3.5 sm:p-4 shadow-sm hover:shadow-md hover:border-secondary/40 border border-outline-variant/30 transition-all duration-200 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 cursor-pointer select-none group">
+        <!-- 1. Left Section: Thumbnail & Core Info -->
+        <div class="flex items-start sm:items-center gap-3 sm:gap-4 flex-1 min-w-0">
+          <!-- Thumbnail Container -->
+          <div class="relative w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-xl bg-surface-container-low overflow-hidden border border-outline-variant/30 flex items-center justify-center">
+            ${hasValidImg ? `
+              <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt="${item.name}" src="${item.image}" onerror="handleListImageError(this, ${item.id})" />
+            ` : `
+              <div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-surface-container-high to-surface-container text-center p-1">
+                <span class="material-symbols-outlined text-xl text-secondary">image_not_supported</span>
+                <span class="text-[9px] text-on-surface-variant font-bold mt-0.5 leading-tight">(이미지 없음)</span>
+              </div>
+            `}
+            <span class="absolute top-1 left-1 px-1.5 py-0.2 rounded bg-primary/90 text-on-primary text-[10px] font-medium shadow-xs">
+              ${item.regionName}
+            </span>
+          </div>
+
+          <!-- Meta & Title & Feature -->
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-1.5 mb-1">
+              <span class="text-xs font-bold text-secondary">${item.brewery}</span>
+              <span class="text-outline text-xs">•</span>
+              <span class="text-xs text-on-surface-variant">${item.feature}</span>
+              <span class="text-outline text-xs hidden sm:inline">•</span>
+              <span class="text-xs text-on-surface-variant font-medium hidden sm:inline">ABV ${item.abv}% · ${item.volume}</span>
+            </div>
+
+            <div class="flex items-center gap-2 mb-1">
+              <h4 class="font-headline-sm text-base sm:text-lg font-bold text-primary group-hover:text-secondary transition-colors truncate">
+                ${item.name}
+              </h4>
+              ${!hasValidImg ? `
+                <span class="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-surface-container text-secondary font-semibold border border-outline-variant/30">
+                  (이미지 없음)
+                </span>
+              ` : `
+                <span id="no-img-text-list-${item.id}" class="hidden shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-surface-container text-secondary font-semibold border border-outline-variant/30">
+                  (이미지 없음)
+                </span>
+              `}
+            </div>
+
+            <p class="text-xs text-on-surface-variant line-clamp-1 mb-2">
+              ${item.desc}
+            </p>
+
+            <!-- Pairing Badge & Single Taste Badge -->
+            <div class="flex flex-wrap items-center gap-2 text-xs">
+              <span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-surface-container text-on-surface-variant">
+                <span class="material-symbols-outlined text-[13px] text-secondary">restaurant</span>
+                <span>추천: <strong class="text-primary">${item.pairing}</strong></span>
+              </span>
+              ${item.knownTasteKeys && item.knownTasteKeys.length === 1 ? `
+                <span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-secondary/15 text-secondary font-bold">
+                  <span class="material-symbols-outlined text-[12px]">tune</span>
+                  ${getTasteNameKo(item.knownTasteKeys[0])} 중심
+                </span>
+              ` : ''}
+              <span class="sm:hidden text-xs text-on-surface-variant font-medium">ABV ${item.abv}% · ${item.volume}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Middle Section: Taste Gauges (당도, 산미, 탄산, 바디감) -->
+        <div class="shrink-0 bg-surface-container-low px-3 py-2 rounded-xl border border-surface-container-high/70 flex flex-col gap-1 w-full md:w-44 lg:w-48 text-[11px]">
+          <!-- 당도 -->
+          <div class="flex items-center justify-between">
+            <span class="text-on-surface-variant flex items-center gap-1">
+              당도
+              ${item.exactMatches && item.exactMatches.sweetness ? '<span class="text-[9px] text-on-tertiary-container font-bold bg-tertiary-container/15 px-1 py-0.2 rounded">🎯</span>' : ''}
+            </span>
+            <div class="flex gap-1">
+              ${renderGaugeBars(item.taste ? item.taste.sweetness : null, 'bg-on-tertiary-container')}
+            </div>
+          </div>
+          <!-- 산미 -->
+          <div class="flex items-center justify-between">
+            <span class="text-on-surface-variant flex items-center gap-1">
+              산미
+              ${item.exactMatches && item.exactMatches.acidity ? '<span class="text-[9px] text-secondary font-bold bg-secondary/15 px-1 py-0.2 rounded">🎯</span>' : ''}
+            </span>
+            <div class="flex gap-1">
+              ${renderGaugeBars(item.taste ? item.taste.acidity : null, 'bg-secondary')}
+            </div>
+          </div>
+          <!-- 탄산 -->
+          <div class="flex items-center justify-between">
+            <span class="text-on-surface-variant flex items-center gap-1">
+              탄산
+              ${item.exactMatches && item.exactMatches.carbonation ? '<span class="text-[9px] text-surface-tint font-bold bg-surface-tint/15 px-1 py-0.2 rounded">🎯</span>' : ''}
+            </span>
+            <div class="flex gap-1">
+              ${renderGaugeBars(item.taste ? item.taste.carbonation : null, 'bg-surface-tint')}
+            </div>
+          </div>
+          <!-- 바디 -->
+          <div class="flex items-center justify-between">
+            <span class="text-on-surface-variant flex items-center gap-1">
+              바디
+              ${item.exactMatches && item.exactMatches.body ? '<span class="text-[9px] text-primary font-bold bg-primary/15 px-1 py-0.2 rounded">🎯</span>' : ''}
+            </span>
+            <div class="flex gap-1">
+              ${renderGaugeBars(item.taste ? item.taste.body : null, 'bg-primary-container')}
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Right Section: Match Rate Badge, Price & Action Button -->
+        <div class="shrink-0 flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 pt-2 md:pt-0 border-t md:border-t-0 border-outline-variant/30 md:min-w-[130px]">
+          <div class="flex flex-col sm:items-end">
+            <div class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full ${badgeStyle} text-xs font-bold shadow-xs mb-1">
+              <span class="material-symbols-outlined text-xs">${badgeIcon}</span>
+              <span>일치도 ${item.matchRate}%</span>
+            </div>
+            <div class="flex items-center gap-1 text-primary font-bold text-sm sm:text-base">
+              <span class="text-[11px] text-outline font-normal">소비자가</span>
+              <span>${item.price === '-' ? '-' : (item.price || '-')}</span>
+            </div>
+          </div>
+          <button onclick="event.stopPropagation(); openTastingModal(${item.id})" class="px-3.5 py-1.5 rounded-full bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold transition-colors flex items-center gap-1 shadow-xs">
+            <span>시음 노트</span>
+            <span class="material-symbols-outlined text-xs">arrow_forward</span>
+          </button>
+        </div>
+      </article>
+      `;
+    });
+    return html;
   }
 
   // 카드 이미지 로드 에러 처리 및 대형 안내판 교체
@@ -2398,6 +2625,29 @@
     const textBadge = document.getElementById('no-img-text-' + id);
     if (textBadge) {
       textBadge.classList.remove('hidden');
+    }
+  }
+
+  // 리스트 뷰 이미지 에러 처리
+  function handleListImageError(imgEl, id) {
+    if (!imgEl) return;
+    const container = imgEl.parentElement;
+    if (!container) return;
+    imgEl.style.display = 'none';
+
+    if (!container.querySelector('.list-no-img-panel')) {
+      const panel = document.createElement('div');
+      panel.className = 'list-no-img-panel w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-surface-container-high to-surface-container text-center p-1';
+      panel.innerHTML = `
+        <span class="material-symbols-outlined text-xl text-secondary">image_not_supported</span>
+        <span class="text-[9px] text-on-surface-variant font-bold mt-0.5 leading-tight">(이미지 없음)</span>
+      `;
+      container.insertBefore(panel, container.firstChild);
+    }
+
+    const badge = document.getElementById('no-img-text-list-' + id);
+    if (badge) {
+      badge.classList.remove('hidden');
     }
   }
 
@@ -2683,10 +2933,12 @@
   // 초기 로드 시 렌더링 (DOM 로드 상태 안전 처리)
   if (document.readyState === 'loading') {
     window.addEventListener('DOMContentLoaded', () => {
+      initViewMode();
       updateBarStatusText();
       filterAndRenderMakgeolli();
     });
   } else {
+    initViewMode();
     updateBarStatusText();
     filterAndRenderMakgeolli();
   }
